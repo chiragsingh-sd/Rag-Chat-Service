@@ -2,25 +2,26 @@ import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
+from app.core.config import get_settings
 from app.core.exceptions import ServiceUnavailableError
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 class SentenceTransformerEmbedder:
     """Generate normalized embeddings with the configured MiniLM model."""
 
-    def __init__(self, model_name: str = EMBEDDING_MODEL_NAME) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
+        configured_model = model_name or get_settings().embedding_model
         try:
             from sentence_transformers import SentenceTransformer
 
-            self.model: Any = SentenceTransformer(model_name)
+            self.model: Any = SentenceTransformer(configured_model)
         except Exception as exc:
-            logger.exception("Embedding model initialization failed model=%s", model_name)
+            logger.exception("Embedding model initialization failed model=%s", configured_model)
             raise ServiceUnavailableError("Embedding model") from exc
 
     def embed(self, texts: list[str]) -> list[list[float]]:

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from app.core.config import get_settings
+
 
 @dataclass(frozen=True)
 class TextChunk:
@@ -12,7 +14,12 @@ class TextChunk:
 class TextChunker:
     """Split normalized text into overlapping, whitespace-aware character chunks."""
 
-    def __init__(self, chunk_size: int = 1_000, chunk_overlap: int = 200) -> None:
+    def __init__(
+        self, chunk_size: int | None = None, chunk_overlap: int | None = None
+    ) -> None:
+        settings = get_settings()
+        chunk_size = settings.chunk_size if chunk_size is None else chunk_size
+        chunk_overlap = settings.chunk_overlap if chunk_overlap is None else chunk_overlap
         if chunk_size <= 0:
             raise ValueError("chunk_size must be greater than zero")
         if chunk_overlap < 0 or chunk_overlap >= chunk_size:

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     llm_model: str = "gpt-4o-mini"
     llm_base_url: str | None = None
+    embedding_model: str = Field(
+        default="sentence-transformers/all-MiniLM-L6-v2", min_length=1
+    )
+    chunk_size: int = Field(default=1_000, gt=0)
+    chunk_overlap: int = Field(default=200, ge=0)
     rag_top_k: int = Field(default=5, ge=1, le=20)
     chat_history_limit: int = Field(default=10, ge=0, le=100)
 

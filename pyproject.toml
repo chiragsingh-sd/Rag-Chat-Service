@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "rag-chat-service"
 version = "0.1.0"
 description = "A small FastAPI RAG chat service"
-readme = "README.MD"
+readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "alembic>=1.14,<2.0",
