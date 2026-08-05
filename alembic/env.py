@@ -6,6 +6,7 @@ from sqlalchemy.engine import Connection
 
 from app.core.config import get_settings
 from app.database.connection import Base
+from app.models.chat import ChatMessage, ChatSession  # noqa: F401
 from app.models.document import Document, DocumentChunk  # noqa: F401
 from app.models.user import User  # noqa: F401
 

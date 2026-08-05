@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     secret_key: str = "development-only-secret-key-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = Field(default=30, gt=0)
+    openai_api_key: str | None = None
+    llm_model: str = "gpt-4o-mini"
+    llm_base_url: str | None = None
+    rag_top_k: int = Field(default=5, ge=1, le=20)
 
     model_config = SettingsConfigDict(
         env_file=".env",

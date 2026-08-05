@@ -13,6 +13,10 @@ services:
       SECRET_KEY: ${SECRET_KEY:-development-only-secret-key-change-me}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-30}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
     depends_on:
       db:
         condition: service_healthy
