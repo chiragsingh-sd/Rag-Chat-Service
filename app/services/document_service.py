@@ -4,12 +4,13 @@ import unicodedata
 from typing import BinaryIO
 
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, DocumentChunk
 from app.models.user import User
 from app.rag.chunker import TextChunker
-from app.rag.embedder import SentenceTransformerEmbedder
+from app.rag.embedder import SentenceTransformerEmbedder, get_embedder
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -31,12 +32,19 @@ def ingest_document(
     db: Session,
     user: User,
     upload: UploadFile,
-    embedder: SentenceTransformerEmbedder,
+    embedder: SentenceTransformerEmbedder | None,
     chunker: TextChunker | None = None,
 ) -> Document:
     """Validate, process, embed, and persist one text document transactionally."""
     try:
         return _ingest_document(db, user, upload, embedder, chunker)
+    except HTTPException as exc:
+        logger.warning(
+            "Upload rejected filename=%r status_code=%d",
+            upload.filename,
+            exc.status_code,
+        )
+        raise
     except Exception:
         logger.exception("Document ingestion failed for filename=%r", upload.filename)
         raise
@@ -75,36 +83,37 @@ def _ingest_document(
 
     text_chunker = chunker or TextChunker()
     chunks = text_chunker.chunk(normalized_text)
-    embeddings = embedder.embed([chunk.content for chunk in chunks])
+    logger.info("Generated %d chunks filename=%r", len(chunks), filename)
+    active_embedder = embedder or get_embedder()
+    embeddings = active_embedder.embed([chunk.content for chunk in chunks])
+    logger.info("Generated embeddings filename=%r count=%d", filename, len(embeddings))
     if len(chunks) != len(embeddings):
         raise RuntimeError("Embedding count does not match chunk count")
 
-    document = Document(
-        user_id=user.id,
-        filename=filename,
-        content_type=upload.content_type or "text/plain",
-        file_size=_file_size(upload.file),
-    )
-    db.add(document)
-    db.flush()
-
-    db.add_all(
-        [
-            DocumentChunk(
-                document_id=document.id,
-                chunk_index=chunk.index,
-                content=chunk.content,
-                embedding=embedding,
-            )
-            for chunk, embedding in zip(chunks, embeddings, strict=True)
-        ]
-    )
-
     try:
+        document = Document(
+            user_id=user.id,
+            filename=filename,
+            content_type=upload.content_type or "text/plain",
+            file_size=_file_size(upload.file),
+        )
+        db.add(document)
+        db.flush()
+
+        db.add_all(
+            [
+                DocumentChunk(
+                    document_id=document.id,
+                    chunk_index=chunk.index,
+                    content=chunk.content,
+                    embedding=embedding,
+                )
+                for chunk, embedding in zip(chunks, embeddings, strict=True)
+            ]
+        )
         db.commit()
-    except Exception:
+        db.refresh(document)
+    except SQLAlchemyError:
         db.rollback()
         raise
-
-    db.refresh(document)
     return document

@@ -2,6 +2,7 @@ import logging
 from collections.abc import Generator
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.connection import engine
@@ -19,9 +20,11 @@ def get_db() -> Generator[Session, None, None]:
     """Provide one SQLAlchemy session per request."""
     session: Session = SessionLocal()
     try:
-        logger.info("Before database SELECT 1 connectivity check")
         session.execute(text("SELECT 1"))
-        logger.info("Database SELECT 1 connectivity check succeeded")
         yield session
+    except SQLAlchemyError:
+        session.rollback()
+        logger.exception("Database session failed during request setup or handling")
+        raise
     finally:
         session.close()

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import Settings, get_settings
+from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.database.connection import engine
 from app.routers.auth import router as auth_router
@@ -30,6 +31,7 @@ app: FastAPI = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+register_exception_handlers(app)
 app.include_router(auth_router)
 app.include_router(documents_router)
 app.include_router(chat_router)

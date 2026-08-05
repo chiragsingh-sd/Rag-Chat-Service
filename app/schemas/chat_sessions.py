@@ -1,13 +1,20 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ChatSessionCreate(BaseModel):
     """Optional metadata for a newly created chat session."""
 
     title: Annotated[str | None, Field(default=None, max_length=200)] = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title_not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Session title must not be blank")
+        return value
 
 
 class ChatSessionResponse(BaseModel):

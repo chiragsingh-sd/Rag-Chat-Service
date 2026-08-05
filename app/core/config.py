@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_base_url: str | None = None
     rag_top_k: int = Field(default=5, ge=1, le=20)
+    chat_history_limit: int = Field(default=10, ge=0, le=100)
 
     model_config = SettingsConfigDict(
         env_file=".env",

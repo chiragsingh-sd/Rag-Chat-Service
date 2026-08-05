@@ -1,8 +1,10 @@
-from functools import lru_cache
 import logging
+from collections.abc import Iterable
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from app.core.config import get_settings
+from app.core.exceptions import ServiceUnavailableError
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -69,28 +71,68 @@ def build_context(chunks: list[Any]) -> str:
     )
 
 
+def build_conversation_history(messages: Iterable[Any]) -> str:
+    """Format chronological prior messages for the grounded prompt."""
+    formatted_messages = [
+        f"{'User' if message.role == 'user' else 'Assistant'}: {message.content}"
+        for message in messages
+    ]
+    return "\n".join(formatted_messages) or "No previous conversation history."
+
+
+def build_prompt(question: str, context: str, conversation_history: str) -> str:
+    """Build the ordered history, context, and current-question prompt."""
+    history = conversation_history or "No previous conversation history."
+    return (
+        "Conversation History\n\n"
+        f"{history}\n\n"
+        "--------------------------\n\n"
+        "Retrieved Context\n\n"
+        f"{context}\n\n"
+        "--------------------------\n\n"
+        "Current Question\n\n"
+        f"{question}\n"
+        "--------------------------"
+    )
+
+
 class OpenAITextGenerator:
     """Generate a grounded answer with the configured OpenAI-compatible client."""
 
     def __init__(self) -> None:
         settings = get_settings()
         if not settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured")
+            raise ServiceUnavailableError("LLM service")
 
-        from openai import OpenAI
+        try:
+            from openai import OpenAI
 
-        client_options: dict[str, str] = {"api_key": settings.openai_api_key}
-        if settings.llm_base_url:
-            client_options["base_url"] = settings.llm_base_url
-        self.client: OpenAI = OpenAI(**client_options)
-        self.model = settings.llm_model
+            client_options: dict[str, str] = {"api_key": settings.openai_api_key}
+            if settings.llm_base_url:
+                client_options["base_url"] = settings.llm_base_url
+            self.client: OpenAI = OpenAI(**client_options)
+            self.model = settings.llm_model
+        except Exception as exc:
+            logger.exception("LLM client initialization failed model=%s", settings.llm_model)
+            raise ServiceUnavailableError("LLM service") from exc
 
-    def generate(self, question: str, context: str) -> str:
+    def generate(
+        self,
+        question: str,
+        context: str,
+        conversation_history: str = "No previous conversation history.",
+    ) -> str:
         """Generate one non-streaming answer from the question and context."""
-        logger.info("Sending chat completion request to Groq-compatible LLM model=%s", self.model)
-        logger.info("Context sent to Groq:\n%s", context)
-        prompt = f"Document context:\n{context}\n\nQuestion:\n{question}"
-        logger.info("Final prompt sent to Groq:\n%s", prompt)
+        prompt = build_prompt(question, context, conversation_history)
+        logger.info(
+            "Prompt constructed prompt_size_chars=%d",
+            len(prompt),
+        )
+        logger.info(
+            "Calling Groq model=%s prompt_size_chars=%d",
+            self.model,
+            len(prompt),
+        )
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -103,12 +145,13 @@ class OpenAITextGenerator:
                     },
                 ],
             )
-        except Exception:
-            logger.exception("Groq-compatible LLM request failed")
-            raise
+        except Exception as exc:
+            logger.exception("Groq request failed model=%s", self.model)
+            raise ServiceUnavailableError("LLM service") from exc
 
         logger.info(
-            "Received Groq-compatible LLM response structure=%s",
+            "Response received model=%s structure=%s",
+            self.model,
             _response_structure(response),
         )
         try:
@@ -127,9 +170,9 @@ class OpenAITextGenerator:
             if not isinstance(content, str) or not content.strip():
                 raise RuntimeError("The configured LLM response contained no text content")
             return content.strip()
-        except Exception:
-            logger.exception("Failed to parse Groq-compatible LLM response")
-            raise
+        except Exception as exc:
+            logger.exception("Groq response parsing failed model=%s", self.model)
+            raise ServiceUnavailableError("LLM service") from exc
 
 
 @lru_cache(maxsize=1)

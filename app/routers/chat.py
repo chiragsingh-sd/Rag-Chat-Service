@@ -7,8 +7,6 @@ from app.core.config import get_settings
 from app.core.security import get_current_user
 from app.database.session import get_db
 from app.models.user import User
-from app.rag.embedder import get_embedder
-from app.rag.generator import get_generator
 from app.rag.retriever import VectorRetriever
 from app.schemas.chat import ChatRequest, ChatResponse, ChatSource
 from app.schemas.chat_sessions import (
@@ -16,6 +14,7 @@ from app.schemas.chat_sessions import (
     ChatSessionDetailResponse,
     ChatSessionResponse,
 )
+from app.schemas.errors import responses_for
 from app.services.chat_service import answer_session_question
 from app.services.chat_session_service import create_session, get_session, list_sessions
 
@@ -27,6 +26,7 @@ retriever = VectorRetriever()
     "/sessions",
     response_model=ChatSessionResponse,
     status_code=status.HTTP_201_CREATED,
+    responses=responses_for(401, 422, 500, 503),
 )
 def create_chat_session(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -38,7 +38,11 @@ def create_chat_session(
     return ChatSessionResponse.model_validate(session)
 
 
-@router.get("/sessions", response_model=list[ChatSessionResponse])
+@router.get(
+    "/sessions",
+    response_model=list[ChatSessionResponse],
+    responses=responses_for(401, 500, 503),
+)
 def list_chat_sessions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
@@ -50,7 +54,11 @@ def list_chat_sessions(
     ]
 
 
-@router.get("/sessions/{session_id}", response_model=ChatSessionDetailResponse)
+@router.get(
+    "/sessions/{session_id}",
+    response_model=ChatSessionDetailResponse,
+    responses=responses_for(401, 404, 500, 503),
+)
 def get_chat_session(
     session_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -61,7 +69,11 @@ def get_chat_session(
     return ChatSessionDetailResponse.model_validate(session)
 
 
-@router.post("", response_model=ChatResponse)
+@router.post(
+    "",
+    response_model=ChatResponse,
+    responses=responses_for(401, 404, 422, 500, 503),
+)
 def chat(
     payload: ChatRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -74,10 +86,11 @@ def chat(
         user=current_user,
         question=payload.question,
         session_id=payload.session_id,
-        embedder=get_embedder(),
-        generator=get_generator(),
+        embedder=None,
+        generator=None,
         retriever=retriever,
         top_k=settings.rag_top_k,
+        history_limit=settings.chat_history_limit,
     )
     return ChatResponse(
         session_id=session.id,

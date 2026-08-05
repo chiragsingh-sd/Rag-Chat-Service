@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.chat import ChatMessage, ChatSession
@@ -14,8 +15,12 @@ def create_session(
     """Create one chat session owned by the authenticated user."""
     chat_session = ChatSession(user_id=user.id, title=title)
     db.add(chat_session)
-    db.commit()
-    db.refresh(chat_session)
+    try:
+        db.commit()
+        db.refresh(chat_session)
+    except SQLAlchemyError:
+        db.rollback()
+        raise
     return chat_session
 
 
@@ -48,6 +53,22 @@ def get_session(db: Session, user: User, session_id: int) -> ChatSession:
     return chat_session
 
 
+def get_owned_session(db: Session, user: User, session_id: int) -> ChatSession:
+    """Load one owned session without eagerly loading its message history."""
+    chat_session = db.scalar(
+        select(ChatSession).where(
+            ChatSession.id == session_id,
+            ChatSession.user_id == user.id,
+        )
+    )
+    if chat_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found",
+        )
+    return chat_session
+
+
 def get_or_create_session(
     db: Session,
     user: User,
@@ -59,7 +80,28 @@ def get_or_create_session(
         db.add(chat_session)
         db.flush()
         return chat_session
-    return get_session(db, user, session_id)
+    return get_owned_session(db, user, session_id)
+
+
+def load_recent_messages(
+    db: Session,
+    chat_session: ChatSession,
+    limit: int,
+) -> list[ChatMessage]:
+    """Load only the latest messages for an already ownership-validated session."""
+    if limit <= 0:
+        return []
+
+    messages = list(
+        db.scalars(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == chat_session.id)
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(limit)
+        ).all()
+    )
+    messages.reverse()
+    return messages
 
 
 def add_message(

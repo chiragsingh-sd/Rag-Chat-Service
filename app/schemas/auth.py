@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserCreate(BaseModel):
@@ -9,6 +9,13 @@ class UserCreate(BaseModel):
 
     email: EmailStr
     password: Annotated[str, Field(min_length=8, max_length=128)]
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Password must not be blank")
+        return value
 
 
 class UserResponse(BaseModel):
@@ -26,4 +33,3 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: Literal["bearer"]
-
