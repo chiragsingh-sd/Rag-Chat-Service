@@ -14,7 +14,7 @@ from app.models.user import User
 
 password_hash: PasswordHash = PasswordHash.recommended()
 oauth2_scheme: OAuth2PasswordBearer = OAuth2PasswordBearer(
-    tokenUrl="/api/auth/login"
+    tokenUrl="/api/auth/login"  
 )
 
 
