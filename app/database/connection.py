@@ -7,11 +7,11 @@ settings = get_settings()
 
 engine = create_engine(
     settings.database_url,
-    echo=settings.database_echo,
+    echo=True,
     pool_pre_ping=True,
+    connect_args={"connect_timeout": 5},
 )
 
 
 class Base(DeclarativeBase):
     """Base class for future SQLAlchemy models."""
-

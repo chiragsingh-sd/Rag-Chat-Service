@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -15,6 +16,7 @@ from app.services.auth_service import (
 )
 
 router: APIRouter = APIRouter(prefix="/api/auth", tags=["auth"])
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -25,9 +27,19 @@ router: APIRouter = APIRouter(prefix="/api/auth", tags=["auth"])
 def register(
     payload: UserCreate,
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> UserResponse:
     """Register a new user account."""
-    return register_user(db, payload)
+    logger.info("Before entering register endpoint")
+    logger.info("Reached register endpoint")
+    logger.info("After entering register endpoint")
+    logger.info("User validated")
+    logger.info("Before register service")
+    user: User = register_user(db, payload)
+    logger.info("After register service")
+    response: UserResponse = UserResponse.model_validate(user)
+    logger.info("Before returning response")
+    logger.info("Returning response")
+    return response
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -50,7 +62,6 @@ def login(
 @router.get("/me", response_model=UserResponse)
 def get_me(
     current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
+) -> UserResponse:
     """Return the currently authenticated user."""
-    return current_user
-
+    return UserResponse.model_validate(current_user)
