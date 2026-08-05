@@ -1,167 +1,141 @@
 # RAG Chat Service
 
-## Project Overview
+RAG Chat Service is a FastAPI backend for authenticated, document-grounded chat. It
+accepts plain-text documents, creates overlapping text chunks and embeddings, stores
+them in PostgreSQL, and uses relevant chunks plus conversation history to answer
+questions through Groq.
 
-RAG Chat Service is a FastAPI backend for authenticated document-grounded chat. It
-accepts plain-text documents, splits them into overlapping chunks, stores normalized
-embeddings in PostgreSQL, retrieves relevant chunks for questions, and sends a
-context-aware prompt to the configured Groq-compatible LLM.
+## Setup Instructions
 
-## Features
+1. Clone the repository:
 
-- JWT authentication and protected API routes
-- Plain-text document upload and normalization
-- Configurable text chunking with overlap
-- Sentence-transformers embeddings
-- PostgreSQL vector storage and similarity retrieval
-- Retrieval-augmented generation (RAG)
-- User-owned chat sessions
-- Database-backed conversation memory for follow-up questions
-- OpenAPI/Swagger documentation
+   ```powershell
+   git clone <repository-url>
+   cd rag-chat-service
+   ```
 
-## Tech Stack
-
-- Python 3.12 or 3.13
-- FastAPI and Uvicorn
-- PostgreSQL and SQLAlchemy
-- Alembic database migrations
-- `sentence-transformers/all-MiniLM-L6-v2` by default for embeddings
-- OpenAI-compatible client configured for Groq by default
-- Pydantic settings and JWT authentication
-
-## Project Structure
-
-```text
-app/
-├── core/       # Settings, security, and exception handling
-├── database/   # SQLAlchemy engine, session, and base metadata
-├── models/     # ORM models
-├── rag/        # Chunking, embeddings, retrieval, and prompt generation
-├── routers/    # Thin HTTP endpoint handlers
-├── schemas/    # Request and response validation models
-└── services/   # Authentication, ingestion, chat, and session business logic
-alembic/
-├── versions/   # Database migrations
-└── env.py      # Alembic metadata/configuration
-README.md
-pyproject.toml
-```
-
-## Installation
-
-1. Create and activate a virtual environment:
+2. Create and activate a virtual environment:
 
    ```powershell
    py -3.13 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    ```
 
-2. Install the project and development tools:
+3. Install the dependencies:
 
    ```powershell
    python -m pip install -e ".[dev]"
    ```
 
-3. Copy `.env.example` to `.env` and set a strong `SECRET_KEY`, a reachable
-   `DATABASE_URL`, and your Groq API key in `OPENAI_API_KEY`.
+4. Copy the environment template:
 
    ```powershell
    Copy-Item .env.example .env
    ```
 
-4. Ensure PostgreSQL is running and the configured database exists.
+5. Configure the required values in `.env`. Set a reachable PostgreSQL
+   `DATABASE_URL`, a strong `SECRET_KEY`, and the Groq API key in
+   `OPENAI_API_KEY`. The example file contains the Groq base URL and model
+   configuration.
+
+6. Make sure PostgreSQL is running, then apply the migrations:
+
+   ```powershell
+   alembic upgrade head
+   ```
+
+7. Start the FastAPI server:
+
+   ```powershell
+   python -m uvicorn app.main:app --reload
+   ```
+
+8. Open Swagger at:
+
+   ```text
+   http://localhost:8000/docs
+   ```
 
 ## Environment Variables
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `APP_NAME` | FastAPI application name | `rag-chat-service` |
-| `ENVIRONMENT` | Runtime environment label | `development` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-| `DATABASE_URL` | SQLAlchemy PostgreSQL URL | local PostgreSQL URL |
-| `DATABASE_ECHO` | Enable SQLAlchemy SQL logging | `false` |
-| `SECRET_KEY` | JWT signing secret; use a strong production value | development-only fallback |
-| `JWT_ALGORITHM` | JWT signing algorithm | `HS256` |
-| `JWT_EXPIRE_MINUTES` | JWT lifetime | `30` |
-| `OPENAI_API_KEY` | Groq API key used by the OpenAI-compatible client | unset |
-| `LLM_MODEL` | Groq model name | `gpt-4o-mini` |
-| `LLM_BASE_URL` | OpenAI-compatible LLM base URL | unset |
-| `EMBEDDING_MODEL` | Sentence-transformers model | `sentence-transformers/all-MiniLM-L6-v2` |
-| `CHUNK_SIZE` | Chunk size in characters | `1000` |
-| `CHUNK_OVERLAP` | Chunk overlap in characters | `200` |
-| `RAG_TOP_K` | Maximum retrieved chunks | `5` |
-| `CHAT_HISTORY_LIMIT` | Maximum prior messages included in prompts | `10` |
+The project includes a `.env.example` file with placeholders. Copy it to `.env`
+and replace the placeholders locally. Do not commit `.env` or put secrets in source
+control.
 
-Never commit `.env` or place passwords, JWT secrets, or API keys in source code.
-The development secret fallback is intended only for local development and must be
-overridden outside development.
+| Variable | Purpose |
+| --- | --- |
+| `APP_NAME` | FastAPI application name. |
+| `ENVIRONMENT` | Runtime environment name. |
+| `LOG_LEVEL` | Application logging level. |
+| `DATABASE_URL` | PostgreSQL connection URL used by SQLAlchemy. |
+| `DATABASE_ECHO` | Enables SQLAlchemy SQL logging when `true`. |
+| `SECRET_KEY` | Secret used to sign JWT access tokens. |
+| `JWT_ALGORITHM` | JWT signing algorithm. |
+| `JWT_EXPIRE_MINUTES` | JWT access-token lifetime. |
+| `OPENAI_API_KEY` | API key used by the OpenAI-compatible Groq client. |
+| `LLM_MODEL` | LLM model name sent to Groq. |
+| `LLM_BASE_URL` | OpenAI-compatible provider URL. |
+| `EMBEDDING_MODEL` | Sentence-transformers model used for indexing and queries. |
+| `CHUNK_SIZE` | Maximum text chunk size in characters. |
+| `CHUNK_OVERLAP` | Overlap between adjacent chunks. |
+| `RAG_TOP_K` | Maximum number of chunks retrieved for a question. |
+| `CHAT_HISTORY_LIMIT` | Maximum previous messages included in a prompt. |
 
-## Running Locally
+## Project Timeline
 
-Apply migrations and start the API:
+The project was built incrementally through milestones: authentication, database setup,
+document upload, chunking, embeddings, semantic retrieval, chat sessions, conversation
+memory, validation and error handling, followed by final cleanup and documentation.
 
-```powershell
-alembic upgrade head
-python -m uvicorn app.main:app --reload
-```
+## Database Schema
 
-The API is then available at `http://127.0.0.1:8000`.
+- `users`
+  Stores user accounts, email addresses, password hashes, and timestamps.
 
-## Database Migration
+- `documents`
+  Stores metadata for uploaded documents and their owning users.
 
-```powershell
-# Apply all migrations
-alembic upgrade head
+- `document_chunks`
+  Stores normalized text chunks, chunk indexes, and embeddings as PostgreSQL float arrays.
 
-# Show the current revision
-alembic current
+- `chat_sessions`
+  Stores conversation sessions belonging to authenticated users.
 
-# Show migration history
-alembic history
+- `chat_messages`
+  Stores user and assistant messages belonging to chat sessions.
 
-# Roll back one revision when needed
-alembic downgrade -1
-```
+## Indexing Choices
 
-Do not run a downgrade in production without a tested backup and rollback plan.
+- `users.email`
+  A unique constraint prevents duplicate accounts. The email index speeds up
+  authentication lookups.
+
+- `documents.user_id`
+  Speeds up filtering documents owned by the authenticated user.
+
+- `document_chunks.document_id`
+  Speeds up lookup of chunks belonging to a document.
+
+- `document_chunks(document_id, chunk_index)`
+  A unique constraint prevents duplicate chunk positions within one document.
+
+- `chat_sessions.user_id`
+  Supports efficient listing and ownership filtering for a user's sessions.
+
+- `chat_messages.session_id`
+  Supports efficient loading of conversation history for one session.
+
+The project does not use `pgvector` or a database vector index. Embeddings are stored
+as PostgreSQL float arrays, and the current retriever calculates cosine similarity in
+Python before returning the configured top-k chunks.
 
 ## API Documentation
 
-With the server running, open:
+Interactive API documentation is available at:
 
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
-
-Use `POST /api/auth/login` to obtain a JWT, then use Swagger's **Authorize** button
-with the token value as `Bearer <token>` for protected routes.
-
-## Example Workflow
-
-The same flow can be executed from Swagger or with an HTTP client:
-
-1. Register with `POST /api/auth/register`.
-2. Login with `POST /api/auth/login` and save the returned access token.
-3. Authorize Swagger with `Bearer <token>`.
-4. Upload a `.txt` file with `POST /documents/upload`.
-5. Create a session with `POST /chat/sessions`.
-6. Ask a document-grounded question with `POST /chat` using the session ID.
-7. Ask a follow-up question with the same session ID.
-8. Read the session and stored messages with `GET /chat/sessions/{id}`.
-
-Example chat request body:
-
-```json
-{
-  "question": "What does the document say about onboarding?",
-  "session_id": 1
-}
+```text
+http://localhost:8000/docs
 ```
 
-The response includes the answer, source documents, chunk indexes, and `session_id`.
-
-## Future Improvements
-
-Possible future work includes pgvector-backed indexing, explicit upload-size limits,
-rate limiting, automated tests in CI, richer observability, and background ingestion.
-These are intentionally outside the current milestone.
+Every endpoint can be tested directly through Swagger. Protected endpoints require a
+JWT obtained from `POST /api/auth/login`, entered in Swagger's **Authorize** dialog.
