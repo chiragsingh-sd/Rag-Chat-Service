@@ -1,0 +1,32 @@
+# Python
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+
+# Environment
+.env
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Pytest
+.pytest_cache/
+
+# Ruff
+.ruff_cache/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
