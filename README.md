@@ -6,7 +6,26 @@ accepts plain-text documents, creates overlapping text chunks and embeddings, st
 them in PostgreSQL, and uses relevant chunks plus conversation history to answer
 questions through Groq.
 
+## Tech Stack
+
+- Python, FastAPI, SQLAlchemy, Alembic, and PostgreSQL
+- Sentence Transformers for document embeddings
+- OpenAI-compatible Groq client for answer generation
+- Docker and Docker Compose
+
+## Project Structure
+
+```text
+app/                  Application code
+alembic/              Database migrations
+Dockerfile            Application image definition
+docker-compose.yml    Application and PostgreSQL services
+pyproject.toml        Project metadata and dependencies
+```
+
 ## Setup Instructions
+
+### Local Development
 
 1. Clone the repository:
 
@@ -49,6 +68,36 @@ questions through Groq.
    ```text
    http://localhost:8000/docs
    ```
+
+### Running with Docker
+
+Prerequisite: [Docker Desktop](https://www.docker.com/products/docker-desktop/) must be installed and running.
+
+Build the application image:
+
+```powershell
+docker compose build
+```
+
+Start the application and PostgreSQL services:
+
+```powershell
+docker compose up
+```
+
+Alembic migrations run automatically when the application container starts.
+
+Open the API documentation at:
+
+```text
+http://localhost:8000/docs
+```
+
+Stop the services with:
+
+```powershell
+docker compose down
+```
 
 ## Environment Variables
 
