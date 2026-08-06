@@ -23,15 +23,19 @@ docker-compose.yml    Application and PostgreSQL services
 pyproject.toml        Project metadata and dependencies
 ```
 
-## Setup Instructions
+## Quick Start
+
+Run the commands below from the repository root. The local setup targets Python
+3.12 or 3.13 and PostgreSQL 16. Docker users need Docker Desktop with Docker
+Compose v2.
 
 ### Local Development
 
-1. Clone the repository:
+1. Clone the repository and enter the project directory:
 
    ```powershell
-   git clone <repository-url>
-   cd rag-chat-service
+   git clone https://github.com/chiragsingh-sd/Rag-Chat-Service.git
+   cd Rag-Chat-Service
    ```
 2. Create and activate a virtual environment:
 
@@ -44,60 +48,100 @@ pyproject.toml        Project metadata and dependencies
    ```powershell
    python -m pip install -e ".[dev]"
    ```
-4. Copy the environment template:
+4. Create the environment file:
 
    ```powershell
    Copy-Item .env.example .env
    ```
-5. Configure the required values in `.env`. Set a reachable PostgreSQL
-   `DATABASE_URL`, a strong `SECRET_KEY`, and the Groq API key in
-   `OPENAI_API_KEY`. The example file contains the Groq base URL and model
-   configuration.
-6. Make sure PostgreSQL is running, then apply the migrations:
+5. Edit `.env` for local PostgreSQL. Change `DATABASE_URL` from the Docker
+   hostname to `postgresql+psycopg://postgres:postgres@localhost:5432/rag_chat`.
+   Also replace the `SECRET_KEY` placeholder and set a real Groq API key in
+   `OPENAI_API_KEY`. This is the exact variable name used by the application;
+   `GROQ_API_KEY` is not read by the current code. `LLM_MODEL` and `LLM_BASE_URL`
+   already contain the example Groq configuration.
+6. Start PostgreSQL 16, then create the application database if it does not
+   already exist:
+
+   ```powershell
+   createdb -U postgres rag_chat
+   ```
+7. Apply the migrations:
 
    ```powershell
    alembic upgrade head
    ```
-7. Start the FastAPI server:
+8. Start the FastAPI server:
 
    ```powershell
    python -m uvicorn app.main:app --reload
    ```
-8. Open Swagger at:
-
-   ```text
-   http://localhost:8000/docs
-   ```
 
 ### Running with Docker
 
-Prerequisite: [Docker Desktop](https://www.docker.com/products/docker-desktop/) must be installed and running.
+1. Install and start [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+2. Clone the repository and enter the project directory:
 
-Build the application image:
+   ```powershell
+   git clone https://github.com/chiragsingh-sd/Rag-Chat-Service.git
+   cd Rag-Chat-Service
+   ```
+3. Create `.env`:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   The example is configured for Compose's `db` service. Set a real Groq key
+   in `OPENAI_API_KEY`; keep `DATABASE_URL` pointed at `db:5432`.
+4. Build the containers:
+
+   ```powershell
+   docker compose build
+   ```
+5. Start the application and PostgreSQL services:
+
+   ```powershell
+   docker compose up
+   ```
+
+   Alembic migrations run automatically when the application container starts.
+6. Open Swagger UI at [http://localhost:8000/docs](http://localhost:8000/docs).
+7. Stop the services with:
+
+   ```powershell
+   docker compose down
+   ```
+
+### Test the API
+
+After either setup is running, check the public health endpoint:
 
 ```powershell
-docker compose build
+Invoke-RestMethod http://localhost:8000/health
 ```
 
-Start the application and PostgreSQL services:
-
-```powershell
-docker compose up
-```
-
-Alembic migrations run automatically when the application container starts.
-
-Open the API documentation at:
+Expected response:
 
 ```text
-http://localhost:8000/docs
+status
+------
+healthy
 ```
 
-Stop the services with:
+Register and authenticate a test user:
 
 ```powershell
-docker compose down
+$body = @{ email = "recruiter@example.com"; password = "Password123!" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/register -ContentType "application/json" -Body $body
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/login -ContentType "application/x-www-form-urlencoded" -Body @{ username = "recruiter@example.com"; password = "Password123!" }
+$headers = @{ Authorization = "Bearer $($login.access_token)" }
+Invoke-RestMethod -Uri http://localhost:8000/api/auth/me -Headers $headers
 ```
+
+For the full RAG flow, use the token in Swagger's **Authorize** dialog, upload
+a UTF-8 `.txt` file through `POST /documents/upload`, then submit a question to
+`POST /chat`. Document uploads require the embedding model, and chat responses
+require the configured Groq key.
 
 ## Environment Variables
 
@@ -111,7 +155,10 @@ control.
 | `ENVIRONMENT`        | Runtime environment name.                                  |
 | `LOG_LEVEL`          | Application logging level.                                 |
 | `DATABASE_URL`       | PostgreSQL connection URL used by SQLAlchemy.              |
-| `DATABASE_ECHO`      | Enables SQLAlchemy SQL logging when`true`.               |
+| `DATABASE_ECHO`      | Enables SQLAlchemy SQL logging when `true`.              |
+| `POSTGRES_DB`        | Database name used by the Docker PostgreSQL service.      |
+| `POSTGRES_USER`      | User used by the Docker PostgreSQL service.               |
+| `POSTGRES_PASSWORD`  | Password used by the Docker PostgreSQL service.           |
 | `SECRET_KEY`         | Secret used to sign JWT access tokens.                     |
 | `JWT_ALGORITHM`      | JWT signing algorithm.                                     |
 | `JWT_EXPIRE_MINUTES` | JWT access-token lifetime.                                 |
@@ -173,6 +220,23 @@ http://localhost:8000/docs
 
 Every endpoint can be tested directly through Swagger. Protected endpoints require a
 JWT obtained from `POST /api/auth/login`, entered in Swagger's **Authorize** dialog.
+
+## Troubleshooting
+
+- **Missing Groq API key:** Set `OPENAI_API_KEY` to a valid Groq key in `.env`,
+  then restart the application. The current code does not read `GROQ_API_KEY`.
+- **Docker is not running:** Start Docker Desktop and retry `docker compose up`.
+- **PostgreSQL connection failure:** Local development must use a reachable
+  `localhost` PostgreSQL URL and an existing `rag_chat` database. Docker must
+  use `postgresql+psycopg://postgres:postgres@db:5432/rag_chat` so the app reaches
+  the Compose `db` service.
+- **Port 8000 or 5432 is already in use:** Check the ports with
+  `Get-NetTCPConnection -LocalPort 8000,5432 -ErrorAction SilentlyContinue`.
+  Stop the conflicting process, or change the host-side port mapping in
+  `docker-compose.yml` before starting Docker.
+- **First document upload is slow:** Sentence Transformers may download the
+  configured embedding model the first time it is used; the container needs
+  network access for that download.
 
 ## Notes
 
