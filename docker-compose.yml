@@ -8,7 +8,7 @@ services:
       APP_NAME: ${APP_NAME:-rag-chat-service}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/rag_chat
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/rag_chat}
       DATABASE_ECHO: ${DATABASE_ECHO:-false}
       SECRET_KEY: ${SECRET_KEY:-development-only-secret-key-change-me}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
@@ -16,7 +16,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      CHUNK_SIZE: ${CHUNK_SIZE:-1000}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
       RAG_TOP_K: ${RAG_TOP_K:-5}
+      CHAT_HISTORY_LIMIT: ${CHAT_HISTORY_LIMIT:-10}
     depends_on:
       db:
         condition: service_healthy
@@ -27,15 +31,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: rag_chat
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-rag_chat}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d rag_chat"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10

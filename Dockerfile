@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY pyproject.toml README.MD ./
+COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic.ini ./
 COPY alembic ./alembic

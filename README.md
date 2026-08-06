@@ -1,3 +1,4 @@
+
 # RAG Chat Service
 
 RAG Chat Service is a FastAPI backend for authenticated, document-grounded chat. It
@@ -123,8 +124,6 @@ http://localhost:8000/docs
 
 Every endpoint can be tested directly through Swagger. Protected endpoints require a
 JWT obtained from `POST /api/auth/login`, entered in Swagger's **Authorize** dialog.
-
-
 
 ## Notes
 
